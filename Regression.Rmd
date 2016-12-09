@@ -1,0 +1,159 @@
+---
+title: "Regression between residuals and terrain roughness"
+author: "Yi Qiang"
+date: "November 22, 2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("C:/Users/yiqi7710/work_CU/DistAdj/SAD_plotting")
+library(knitr)
+library(reshape2)
+library(ggplot2)
+library(RColorBrewer)
+source("TM_residual.R")
+```
+
+## Correlation between residual and Terrain Ruggedness Index
+###In each interval between two adjacent sample points
+####Correlation between residuals along Transect 1 in Nebraska on
+
+```{r eval=TRUE,echo=FALSE, fig.width = 15, fig.height = 10}
+#Get RTI on 3m LiDAR data
+benchmark=read.csv('C:/Users/yiqi7710/work_CU/data/Modified_2/Nebraska/sample_points/dist_tran1_res3.csv');
+T_Indx=benchmark$DEM_ST;
+
+
+path='C:/Users/yiqi7710/work_CU/data/Modified_2/Nebraska/sample_points/'
+
+res_list=c(9,27,81,653);
+med_list=c('ClosCtr','WeiAvg','BiLin','BiQua','BiCub','TIN','NN')
+
+#Define empty matrices for correlation and regression coefficients
+coef_L=matrix(, nrow = 4, ncol = 7);
+sig_L=matrix(, nrow = 4, ncol = 7);
+reg_coef_L=matrix(, nrow = 4, ncol = 7);
+reg_ins_L=matrix(, nrow = 4, ncol = 7);
+r_sqr_L=matrix(, nrow = 4, ncol = 7);
+resids_L=matrix(list(),nrow = 4, ncol=7)
+colnames(resids_L)=med_list
+rownames(resids_L)=res_list
+
+j=1;
+for (med in med_list){
+  i=1;
+  
+  par(mfrow=c(2,2),oma=c(2,2,2,2), mar=c(4,4,4,4))
+  resids_res_L=list()
+  for (res in res_list){
+    in_file=paste0(path,'dist_tran1_res',res,'.csv'); #Specify the input file
+    data=read.csv(in_file); #Read the csv file into matrix
+    residual=abs(data[[j+9]]) #Extract the residuals of different methods
+    
+    #Plot scatterplots of residuals - T-Indx
+    sub_title=paste0(res,"m resolution") #Define the title of sub-images in plot
+    plot(T_Indx,residual, pch = 16, cex = 1,main=sub_title) #Create the scatterplot
+    
+    #Fit the residuals and T-Indx into a linear regression model
+    lin_reg=lm(residual~T_Indx) #fit into a linear regression
+    abline(lin_reg, col="red") # add regression line to the scatter plot
+    lin_reg.sum=summary(lin_reg) #Get details of the regression model
+    
+    #Get the reg coef and R square
+    reg_coef=lin_reg.sum$coefficients[1,2] #get reg coefficient
+    intercept=lin_reg.sum$coefficients[1,1] #Get intercept
+    r_square=lin_reg.sum$r.squared #Load r_sqr_L
+      
+
+    eq <- paste0("residual = ", round(intercept,5), ifelse(sign(round(reg_coef,5))==1, " + ", " - "), abs(round(reg_coef,5)), " T-Indx ")## sign check to avoid having plus followed by minus for negative coefficients
+    mtext(eq, 3, line=0) # Add the equation to plot
+    
+    
+
+    reg_coef_L[i,j]=reg_coef #Load regression coefficients into a matrix
+    reg_ins_L[i,j]=intercept #Load intercept into a matrix
+    r_sqr_L[i,j]=r_square #Load r_sqr_L
+    
+    coef_L[i,j]<-cor.test(residual, T_Indx)$estimate; #Load correlation coefficients into a matrix
+    sig_L[i,j]<-cor.test(residual, T_Indx)$p.value; #Load correlation p value into a matrix
+    
+    #Get the residuals of the linear regression
+    resids=lin_reg.sum$residuals
+    resids_L[i,j]<-list(resids)
+    
+    #Define the column and row names of the matrices
+    rownames(coef_L)=as.character(res_list);
+    rownames(sig_L)=as.character(res_list);
+    rownames(reg_coef_L)=as.character(res_list);
+    rownames(r_sqr_L)=as.character(res_list);
+
+    colnames(coef_L)=med_list;
+    colnames(sig_L)=med_list;
+    colnames(reg_coef_L)=med_list;
+    colnames(r_sqr_L)=med_list;
+    
+    #Move the tick forward by 1
+    i=i+1;
+  }
+  mtext(paste0('Method: ',med),line=0,side=3, outer=TRUE, cex=2)
+  box(which = "outer", lty = "solid")
+  j=j+1;
+}
+```
+
+####Plot the correlation coefficents
+```{r, echo=FALSE}
+kable(coef_L, row.names = TRUE, col.names = colnames(coef_L))
+```
+
+####Plot the signicant level
+```{r, echo=FALSE}
+kable(sig_L, row.names = TRUE, col.names = colnames(coef_L))
+```
+
+####Plot the reggression coefficient
+```{r, echo=FALSE}
+#Create the table
+kable(reg_coef_L, row.names = TRUE, col.names = colnames(coef_L))
+```
+
+```{r, echo=FALSE}
+#Create the plot
+matplot(reg_coef_L[,2:6], main="Regression coefficients", type = c("b"),lty=1, lwd=3,lend = 'butt', xaxt = "n", pch=1,col = brewer.pal(5, "Dark2")) #plot
+legend("topleft", legend =med_list[2:6], col=brewer.pal(5, "Dark2"), pch=15, pt.cex=1.5 ,cex = 1.5) # optional legend
+axis(1, at = c(1,2,3,4), labels = rownames(reg_coef_L), cex.axis = 1)
+```
+
+####Plot the R-Squares
+```{r, echo=FALSE}
+dev.off()
+#Create the table
+kable(r_sqr_L, row.names = TRUE, col.names = colnames(coef_L))
+```
+
+```{r, echo=FALSE}
+#Create the plot
+matplot(r_sqr_L[,2:6],main="R-Square", type = c("b"),lty=1, lwd=3,lend = 'butt', xaxt = "n", pch=1,col = brewer.pal(5, "Dark2")) #plot
+legend("topleft", legend =med_list[2:6], col=brewer.pal(5, "Dark2"), pch=15, pt.cex=2 ,cex = 1.5) # optional legend
+axis(1, at = c(1,2,3,4), labels = rownames(r_sqr_L), cex.axis = 1)
+
+```
+
+
+####Plot the R-square of the linear regression
+```{r, echo=FALSE}
+kable(r_sqr_L, row.names = TRUE, col.names = colnames(coef_L))
+```
+
+###Plot the line charts of all residuals
+```{r, echo=FALSE}
+TM_resids
+```
+
+###Plot the TM for residuals of different methods
+```{r, echo=FALSE}
+data1=read.csv(input_file)
+resids=data1[10:20]
+series=resids[1]
+```
